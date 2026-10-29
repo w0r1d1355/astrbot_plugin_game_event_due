@@ -36,7 +36,7 @@
 
 | 数据源 | 游戏 | 说明 |
 | --- | --- | --- |
-| [SRA 公共 API](https://starrailassistant.top/reference/public-api/) | 崩坏：星穹铁道、原神、绝区零、鸣潮、异环、蔚蓝档案（国服 / 国际服 / 日服） | 无需认证，返回活动名、描述、开始时间、结束时间与封面 |
+| [SRA 公共 API](https://starrailassistant.top/reference/public-api/) | 崩坏：星穹铁道、原神、绝区零、鸣潮、异环、蔚蓝档案（国服 / 国际服 / 日服）、星塔旅人、无限暖暖、少女前线2：追放、战双帕弥什、卡厄斯梦境（国际服）、棕色尘埃2、NIKKE（国际服）、火影忍者 | 无需认证，返回活动名、描述、开始时间、结束时间与封面 |
 | [AKEData](https://www.akedata.wiki/) | 明日方舟：终末地 | 官方配置表，含活动与寻访卡池；需要访问境外站点 |
 | [PRTS](https://prts.wiki/) | 明日方舟 | Semantic MediaWiki 查询，含活动分类与兑换结束时间；站点有限流 |
 
@@ -54,6 +54,14 @@
 | `ba-cn` | 蔚蓝档案（国服） | 蔚蓝档案、碧蓝档案、ba、蔚蓝国服 |
 | `ba-global` | 蔚蓝档案（国际服） | 蔚蓝国际服、ba国际服 |
 | `ba-jp` | 蔚蓝档案（日服） | 蔚蓝日服、ba日服 |
+| `xtlr` | 星塔旅人 | 星塔、stellasora |
+| `infinitynikki` | 无限暖暖 | 暖暖、nikki |
+| `gf2` | 少女前线2：追放 | 少前2、少女前线2、追放、girlsfrontline2 |
+| `pgr` | 战双帕弥什 | 战双、帕弥什、punishing、punishinggrayraven |
+| `czn` | 卡厄斯梦境（国际服） | 卡厄斯梦境、卡厄斯、chaoszeronightmare |
+| `bd2` | 棕色尘埃2 | 棕色尘埃、browndust2 |
+| `nikke` | NIKKE（国际服） | 妮姬、胜利女神、胜利女神妮姬 |
+| `hyrz` | 火影忍者 | 火影、火影手游、naruto |
 | `endfield` | 明日方舟：终末地 | 终末地、zmd |
 | `arknights` | 明日方舟 | 舟、方舟、ak |
 
@@ -61,7 +69,7 @@
 > 每行一条 `代号=名字`，例如 `sr=星铁`、`arknights=舟游`、`endfield=终末地`。
 > 左边写代号、完整名称或内置别名都能命中（不区分大小写），留空就用原始名称。
 
-共 **10 款游戏**。三个数据源都可以在配置里单独开关。
+共 **18 款游戏**。三个数据源都可以在配置里单独开关。
 
 ## 安装
 

@@ -391,7 +391,7 @@ def build_registry() -> GameRegistry:
 
 def test_registry_contains_expected_games():
     registry = build_registry()
-    assert len(registry.games) == 10
+    assert len(registry.games) == 18
     assert registry.get("endfield") is not None
 
 
@@ -407,6 +407,15 @@ def test_registry_contains_expected_games():
         ("明日方舟", "arknights"),
         ("方舟", "arknights"),
         ("ba", "ba-cn"),
+        ("xtlr", "xtlr"),
+        ("星塔旅人", "xtlr"),
+        ("暖暖", "infinitynikki"),
+        ("少前2", "gf2"),
+        ("战双", "pgr"),
+        ("卡厄斯梦境", "czn"),
+        ("棕色尘埃2", "bd2"),
+        ("妮姬", "nikke"),
+        ("火影", "hyrz"),
     ],
 )
 def test_registry_resolves_aliases(token, expected):

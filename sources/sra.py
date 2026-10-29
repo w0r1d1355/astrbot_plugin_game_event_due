@@ -56,6 +56,62 @@ SRA_GAMES: tuple[Game, ...] = (
         ("蔚蓝档案", "碧蓝档案", "蔚蓝日服", "ba日服", "bluearchivejp"),
         "蔚蓝档案日服",
     ),
+    Game(
+        "xtlr",
+        "星塔旅人",
+        "sra",
+        ("星塔", "stellasora"),
+        "星塔旅人",
+    ),
+    Game(
+        "infinitynikki",
+        "无限暖暖",
+        "sra",
+        ("暖暖", "nikki"),
+        "无限暖暖",
+    ),
+    Game(
+        "gf2",
+        "少女前线2：追放",
+        "sra",
+        ("少前2", "少女前线2", "追放", "girlsfrontline2"),
+        "少前2",
+    ),
+    Game(
+        "pgr",
+        "战双帕弥什",
+        "sra",
+        ("战双", "帕弥什", "punishing", "punishinggrayraven"),
+        "战双帕弥什",
+    ),
+    Game(
+        "czn",
+        "卡厄斯梦境（国际服）",
+        "sra",
+        ("卡厄斯梦境", "卡厄斯", "chaoszeronightmare"),
+        "卡厄斯梦境",
+    ),
+    Game(
+        "bd2",
+        "棕色尘埃2",
+        "sra",
+        ("棕色尘埃", "browndust2"),
+        "棕色尘埃2",
+    ),
+    Game(
+        "nikke",
+        "NIKKE（国际服）",
+        "sra",
+        ("妮姬", "胜利女神", "胜利女神妮姬"),
+        "NIKKE",
+    ),
+    Game(
+        "hyrz",
+        "火影忍者",
+        "sra",
+        ("火影", "火影手游", "naruto"),
+        "火影忍者",
+    ),
 )
 
 
