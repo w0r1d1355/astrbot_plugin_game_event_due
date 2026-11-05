@@ -8,16 +8,23 @@ import pytest
 
 from astrbot_plugin_game_event_due.sources.akedata import AkedataSource
 from astrbot_plugin_game_event_due.sources.base import (
+    DEFAULT_DIRECT_HOSTS,
     GAME_TIMEZONE,
     Activity,
     JsonHttpClient,
+    build_direct_mounts,
     filter_relevant,
     format_remaining,
+    is_direct_host,
     make_activity_id,
+    normalize_direct_hosts,
     normalize_token,
     parse_datetime,
     strip_html,
 )
+import hashlib
+from urllib.parse import quote
+
 from astrbot_plugin_game_event_due.sources.prts import PrtsSource, parse_smw_timestamp
 from astrbot_plugin_game_event_due.sources.registry import GameRegistry
 from astrbot_plugin_game_event_due.sources.sra import SraSource
@@ -323,6 +330,7 @@ def prts_payload() -> dict:
                         ],
                         "名称": ["SideStory「月行水上」"],
                         "名称缩短": ["月行水上"],
+                        "标题图文件名": ["活动预告 月行水上.jpg"],
                         "分类": [
                             {"fulltext": "分类:有活动信息的页面"},
                             {"fulltext": "分类:支线故事"},
@@ -370,6 +378,22 @@ async def test_prts_parse():
     assert item.tags == ("支线故事", "联动活动")
     assert item.url == "https://prts.wiki/w/月行水上"
     assert item.extra_times[0][0] == "兑换结束"
+    # 封面按 MediaWiki 的 md5 分片规则拼出（Special:FilePath 在 PRTS 上是 404）
+    digest = hashlib.md5("活动预告_月行水上.jpg".encode("utf-8")).hexdigest()
+    assert item.cover == (
+        f"https://media.prts.wiki/{digest[0]}/{digest[:2]}/"
+        + quote("活动预告_月行水上.jpg")
+    )
+
+
+@pytest.mark.anyio
+async def test_prts_without_cover_file():
+    payload = prts_payload()
+    payload["query"]["results"]["月行水上"]["printouts"]["标题图文件名"] = []
+    client = FakeClient({"action=ask": payload})
+    source = PrtsSource(client, min_request_interval_seconds=0)
+    activities = list(await source.fetch("arknights"))
+    assert activities[0].cover == ""
 
 
 @pytest.mark.anyio
@@ -453,3 +477,65 @@ def test_registry_resolve_many_reports_unknown():
     games, unknown = registry.resolve_many(["sr", "原神", "不存在的游戏"])
     assert [game.game_id for game in games] == ["sr", "ys"]
     assert unknown == ["不存在的游戏"]
+
+
+# ---- 代理分流：国内站点直连 ----
+
+
+def test_direct_hosts_default_covers_domestic_sources():
+    assert normalize_direct_hosts(None) == DEFAULT_DIRECT_HOSTS
+    assert "prts.wiki" in DEFAULT_DIRECT_HOSTS
+    assert "data.akedata.wiki" in DEFAULT_DIRECT_HOSTS
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "prts.wiki, media.prts.wiki",
+        "prts.wiki\nmedia.prts.wiki",
+        "https://prts.wiki/w/首页\nhttps://media.prts.wiki/x.png",
+        " prts.wiki ，media.prts.wiki ； ",
+    ],
+)
+def test_normalize_direct_hosts_accepts_common_separators(raw):
+    assert normalize_direct_hosts(raw) == ("prts.wiki", "media.prts.wiki")
+
+
+def test_normalize_direct_hosts_strips_scheme_path_and_port():
+    hosts = normalize_direct_hosts("HTTP://Data.AKEdata.wiki:443/public/x.png")
+    assert hosts == ("data.akedata.wiki",)
+
+
+def test_normalize_direct_hosts_empty_disables_direct_routing():
+    assert normalize_direct_hosts("") == ()
+    assert normalize_direct_hosts("   ,  ") == ()
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        ("https://prts.wiki/api.php", True),
+        ("https://media.prts.wiki/a.png", True),
+        ("https://data.akedata.wiki/public/x.png", True),
+        ("https://starrailassistant.top/api/v1/activity", False),
+        ("https://notprts.wiki/x", False),
+        ("", False),
+    ],
+)
+def test_is_direct_host_matches_subdomains_only(url, expected):
+    assert is_direct_host(url, DEFAULT_DIRECT_HOSTS) is expected
+
+
+def test_build_direct_mounts_is_empty_without_hosts():
+    assert build_direct_mounts(()) == {}
+
+
+def test_build_direct_mounts_covers_host_and_subdomains():
+    pytest.importorskip("httpx")
+    mounts = build_direct_mounts(("prts.wiki",))
+    assert set(mounts) == {"all://prts.wiki", "all://*.prts.wiki"}
+
+
+def test_http_client_keeps_direct_hosts():
+    client = JsonHttpClient(direct_hosts=DEFAULT_DIRECT_HOSTS)
+    assert client.direct_hosts == DEFAULT_DIRECT_HOSTS

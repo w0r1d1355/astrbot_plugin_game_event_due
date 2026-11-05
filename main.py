@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -25,13 +26,19 @@ from .services.message_formatter import (
     DEFAULT_COVER_MAX_TOTAL_MB,
     DEFAULT_COVER_MAX_WIDTH,
     DEFAULT_COVER_MODE,
+    DEFAULT_FORWARD_NODE_NAME,
+    DEFAULT_GAME_SHORT_NAMES,
     DEFAULT_URGENCY_RULES,
     MessageSettings,
     build_overview_parts,
     display_game_name,
     normalize_cover_mode,
     normalize_game_aliases,
+    normalize_game_short_names,
+    format_game_pairs,
+    format_urgency_rules,
     parse_urgency_rules,
+    short_game_name,
 )
 from .services.polling_service import ActivityPollingService, PollingSettings
 from .services.reminder_service import ReminderPolicy, normalize_thresholds
@@ -41,11 +48,13 @@ from .services.subscription_service import (
     resolve_policy,
 )
 from .sources import (
+    DEFAULT_DIRECT_HOSTS,
     GAME_TIMEZONE,
     AkedataSource,
     JsonHttpClient,
     PrtsSource,
     SraSource,
+    normalize_direct_hosts,
 )
 from .services.urgent_dm_service import (
     UrgentDmSettings,
@@ -129,6 +138,11 @@ class GameActivityPlugin(Star):
             5, self._cfg_int("basic", "request_timeout_seconds", 20)
         )
         self.proxy = str(self._cfg_str("basic", "proxy", "") or "").strip()
+        # 配了代理时，国内站点默认直连（见 sources.base.DEFAULT_DIRECT_HOSTS）；
+        # 清空这一项表示所有请求都走代理。
+        self.direct_hosts = normalize_direct_hosts(
+            self._cfg("basic", "direct_hosts", ", ".join(DEFAULT_DIRECT_HOSTS))
+        )
         self.cache_dir = self._resolve_cache_dir(
             self._cfg_str("basic", "cache_dir", "")
         )
@@ -168,61 +182,7 @@ class GameActivityPlugin(Star):
                 "reminder", "remind_only_active", True
             ),
         )
-        self.message_settings = MessageSettings(
-            include_description=self._cfg_bool(
-                "message_format", "include_description", False
-            ),
-            cover_mode=normalize_cover_mode(
-                self._cfg("message_format", "cover_mode", DEFAULT_COVER_MODE)
-            ),
-            include_tags=self._cfg_bool("message_format", "include_tags", True),
-            include_extra_times=self._cfg_bool(
-                "message_format", "include_extra_times", True
-            ),
-            single_message_per_game=self._cfg_bool(
-                "message_format", "single_message_per_game", True
-            ),
-            use_forward_node=self._cfg_bool(
-                "message_format", "use_forward_node", False
-            ),
-            cover_compress=self._cfg_bool(
-                "message_format", "cover_compress", True
-            ),
-            cover_max_width=max(
-                0,
-                self._cfg_int(
-                    "message_format", "cover_max_width", DEFAULT_COVER_MAX_WIDTH
-                ),
-            ),
-            cover_max_total_mb=self._cfg_int(
-                "message_format",
-                "cover_max_total_mb",
-                DEFAULT_COVER_MAX_TOTAL_MB,
-            ),
-            activity_separator=self._cfg_str(
-                "message_format",
-                "activity_separator",
-                DEFAULT_ACTIVITY_SEPARATOR,
-            ).strip("\r\n")[:MAX_SEPARATOR_LENGTH],
-            urgency_marker=self._cfg_bool(
-                "message_format", "urgency_marker", True
-            ),
-            urgency_rules=parse_urgency_rules(
-                self._cfg_str(
-                    "message_format", "urgency_rules", DEFAULT_URGENCY_RULES
-                )
-            ),
-            headline_remaining=self._cfg_bool(
-                "message_format", "headline_remaining", True
-            ),
-            tier_summary=self._cfg_bool("message_format", "tier_summary", True),
-            sort_by_urgency=self._cfg_bool(
-                "message_format", "sort_by_urgency", True
-            ),
-            game_aliases=normalize_game_aliases(
-                self._cfg("message_format", "game_aliases", "")
-            ),
-        )
+        self.message_settings = self._build_message_settings()
 
         # 紧急私聊提醒：进档后按间隔重复私聊，直到对方确认知晓
         self.urgent_dm = UrgentDmSettings(
@@ -246,6 +206,7 @@ class GameActivityPlugin(Star):
             proxy=self.proxy or None,
             timeout=float(self.request_timeout),
             cache_dir=self.cache_dir,
+            direct_hosts=self.direct_hosts,
         )
         self.registry = GameRegistry(self._build_sources())
         if not self.registry.games:
@@ -278,6 +239,7 @@ class GameActivityPlugin(Star):
             max_width=self.message_settings.cover_max_width,
             timeout=float(self.request_timeout),
             proxy=self.proxy or None,
+            direct_hosts=self.direct_hosts,
         )
         self.delivery = ActivityDeliveryService(
             context, self.message_settings, self.cover_resolver
@@ -300,6 +262,116 @@ class GameActivityPlugin(Star):
                 logger.warning(f"游戏活动管理 WebUI 注册失败: {exc}")
         else:
             logger.info("当前 AstrBot 版本不支持 Plugin Pages，跳过后台管理页")
+
+    def _build_message_settings(self) -> MessageSettings:
+        """按当前配置构造消息格式设置；保存模板后也走这里重建。"""
+        return MessageSettings(
+        include_description=self._cfg_bool(
+            "message_format", "include_description", False
+        ),
+        cover_mode=normalize_cover_mode(
+            self._cfg("message_format", "cover_mode", DEFAULT_COVER_MODE)
+        ),
+        include_tags=self._cfg_bool("message_format", "include_tags", True),
+        include_extra_times=self._cfg_bool(
+            "message_format", "include_extra_times", True
+        ),
+        single_message_per_game=self._cfg_bool(
+            "message_format", "single_message_per_game", True
+        ),
+        use_forward_node=self._cfg_bool(
+            "message_format", "use_forward_node", False
+        ),
+        cover_compress=self._cfg_bool(
+            "message_format", "cover_compress", True
+        ),
+        cover_max_width=max(
+            0,
+            self._cfg_int(
+                "message_format", "cover_max_width", DEFAULT_COVER_MAX_WIDTH
+            ),
+        ),
+        cover_max_total_mb=self._cfg_int(
+            "message_format",
+            "cover_max_total_mb",
+            DEFAULT_COVER_MAX_TOTAL_MB,
+        ),
+        activity_separator=self._cfg_str(
+            "message_format",
+            "activity_separator",
+            DEFAULT_ACTIVITY_SEPARATOR,
+        ).strip("\r\n")[:MAX_SEPARATOR_LENGTH],
+        urgency_marker=self._cfg_bool(
+            "message_format", "urgency_marker", True
+        ),
+        urgency_rules=parse_urgency_rules(
+            self._cfg_str(
+                "message_format", "urgency_rules", DEFAULT_URGENCY_RULES
+            )
+        ),
+        headline_remaining=self._cfg_bool(
+            "message_format", "headline_remaining", True
+        ),
+        tier_summary=self._cfg_bool("message_format", "tier_summary", True),
+        sort_by_urgency=self._cfg_bool(
+            "message_format", "sort_by_urgency", True
+        ),
+        game_aliases=normalize_game_aliases(
+            self._cfg("message_format", "game_aliases", "")
+        ),
+        image_mode_detail_link=self._cfg_bool(
+            "message_format", "image_mode_detail_link", False
+        ),
+        use_short_names=self._cfg_bool(
+            "message_format", "use_short_names", True
+        ),
+        game_short_names=(
+            normalize_game_short_names(
+                self._cfg("message_format", "game_short_names", "")
+            )
+            or DEFAULT_GAME_SHORT_NAMES
+        ),
+        forward_node_name=(
+            str(
+                self._cfg(
+                    "message_format",
+                    "forward_node_name",
+                    DEFAULT_FORWARD_NODE_NAME,
+                )
+            ).strip()
+            or DEFAULT_FORWARD_NODE_NAME
+        ),
+        )
+
+    def reload_message_settings(self) -> None:
+        """配置被改后重建设置，并同步给已经持有旧对象的调用方。"""
+        self.message_settings = self._build_message_settings()
+        self.delivery.settings = self.message_settings
+        self.polling.message_settings = self.message_settings
+        self.cover_resolver.compress = self.message_settings.cover_compress
+        self.cover_resolver.max_width = self.message_settings.cover_max_width
+
+    def message_format_values(self) -> dict[str, Any]:
+        """把当前消息格式设置还原成页面可编辑的原始值。"""
+        settings = self.message_settings
+        return {
+            "use_forward_node": settings.use_forward_node,
+            "forward_node_name": settings.forward_node_name,
+            "use_short_names": settings.use_short_names,
+            "game_short_names": format_game_pairs(settings.game_short_names),
+            "game_aliases": format_game_pairs(settings.game_aliases),
+            "urgency_marker": settings.urgency_marker,
+            "urgency_rules": format_urgency_rules(settings.urgency_rules),
+            "tier_summary": settings.tier_summary,
+            "headline_remaining": settings.headline_remaining,
+            "sort_by_urgency": settings.sort_by_urgency,
+            "activity_separator": settings.activity_separator,
+            "include_description": settings.include_description,
+            "include_tags": settings.include_tags,
+            "include_extra_times": settings.include_extra_times,
+            "cover_mode": settings.cover_mode,
+            "image_mode_detail_link": settings.image_mode_detail_link,
+        }
 
     # ---- 配置读取辅助 ----
 
@@ -578,18 +650,26 @@ class GameActivityPlugin(Star):
                     f"⚠️ 暂时无法获取 {game.name} 的活动数据: {exc}"
                 )
                 continue
+            source_name = self.registry.source_name(game.game_id)
+            if settings.use_forward_node:
+                forward = await self.delivery.build_overview_forward_chain(
+                    game, activities, now, settings, source_name=source_name
+                )
+                if forward is not None:
+                    yield event.chain_result(forward)
+                    continue
             parts = build_overview_parts(
                 game,
                 activities,
                 now,
                 settings,
-                source_name=self.registry.source_name(game.game_id),
+                source_name=source_name,
             )
             yield event.chain_result(
                 await self.delivery.build_event_chain(
                     parts,
-                    settings,
-                    node_name=display_game_name(game, settings),
+                    replace(settings, use_forward_node=False),
+                    node_name=short_game_name(game, settings),
                     forward_title=(
                         f"🎮 {display_game_name(game, settings)} · 当前活动"
                     ),
